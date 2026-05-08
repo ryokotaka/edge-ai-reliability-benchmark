@@ -1,70 +1,76 @@
 # Architecture
 
+This project is a small edge-AI reliability benchmark. The current implementation runs
+on a laptop with synthetic data, but the pipeline is shaped so the same measurements
+can move to Raspberry Pi and real sensors later.
+
+## Current Pipeline
+
 ```text
-synthetic sensor data
-  -> CSV
+synthetic sensor-like stream
+  -> CSV sample
   -> SQLite readings table
   -> reliability metrics
-  -> lightweight inference
-  -> software optimization
-  -> experiment log
+  -> lightweight anomaly scoring
+  -> software optimization experiments
+  -> summary JSON files
+  -> static HTML dashboard
 ```
 
-v0 stops at CSV, SQLite, and reliability metrics. Lightweight inference and
-optimization are planned after the measurement pipeline is reproducible.
+## Data Layer
 
-v1 adds a local JSONL recovery buffer:
+`scripts/generate_synthetic_data.py` creates deterministic 1 Hz environmental readings:
 
-```text
-synthetic sensor data
-  -> simulated SQLite write failure
-  -> local recovery buffer
-  -> checkpoint
-  -> SQLite flush after recovery
-  -> recovery_loss comparison
-```
+- temperature
+- humidity
+- pressure
+- latency jitter
+- missing rows
+- noisy rows
+- restart-gap markers
 
-v2 adds lightweight anomaly scoring:
+`edge_agent/storage.py` loads the CSV into SQLite so the benchmark has a local storage
+path similar to a small edge device.
 
-```text
-synthetic sensor data
-  -> calibration from normal rows
-  -> float-like anomaly scorer
-  -> quantized-like anomaly scorer
-  -> precision / recall / F1 / state-size comparison
-```
+## Measurement Layer
 
-v3 adds adaptive sampling:
+`edge_agent/metrics.py` calculates the base reliability metrics:
 
-```text
-quantized-like anomaly scorer
-  -> fixed-rate baseline
-  -> adaptive stable-period skipping
-  -> sampled_count / recall / F1 comparison
-```
+- `missing_rate`
+- `p95_latency_ms`
+- `uptime_ratio`
+- `recovery_loss`
 
-v4 adds batch-write comparison:
+These metrics are intentionally simple. They make failure and recovery behavior visible
+before the project adds real hardware noise.
 
-```text
-CSV readings
-  -> direct per-row SQLite writes
-  -> batched SQLite writes
-  -> insert_calls / commit_count / elapsed_ms comparison
-```
+## Experiment Layers
 
-v5 adds a stability filter for transient false positives:
+| Version | Experiment | Baseline | Optimized / alternate path |
+| --- | --- | --- | --- |
+| v1 | Local recovery | Direct SQLite write loses rows during simulated failure | JSONL buffer + checkpoint flushes rows after recovery |
+| v2 | Lightweight inference | Float-like anomaly scoring | Quantized-like integer scoring |
+| v3 | Sampling policy | Fixed 1 Hz inference | Adaptive sampling during stable periods |
+| v4 | Storage writes | Per-row SQLite insert and commit | Batch insert and commit |
+| v5 | Alert stability | Threshold-only alerting | 2-sample hysteresis confirmation |
+| v6 | Result viewing | Markdown and JSON summaries | Local static dashboard |
 
-```text
-synthetic transient spikes
-  -> threshold-only anomaly alerts
-  -> consecutive-anomaly hysteresis filter
-  -> false_positive / recall / detection_delay comparison
-```
+## Dashboard Layer
 
-v6 adds a local static dashboard:
+`dashboard/app.py` reads local summary files from `data/*_experiment/summary.json` and
+writes `dashboard/index.html`.
 
-```text
-data/*_experiment/summary.json
-  -> dashboard/app.py
-  -> dashboard/index.html
-```
+The dashboard is only a viewing layer. It does not introduce a cloud backend, paid API,
+JavaScript framework, or external data service.
+
+## Intentional Boundaries
+
+The current architecture avoids production-scale features so the benchmark stays
+reproducible and easy to audit:
+
+- no cloud service
+- no remote database
+- no private data source
+- no camera input
+- no Kubernetes or distributed orchestration
+- no hardware-performance claims until Raspberry Pi measurements exist

@@ -3,6 +3,10 @@
 This dashboard is a dependency-free static HTML report generated from local experiment
 summary files.
 
+It is meant to make the benchmark easier to scan when showing the project to someone:
+one page compares recovery loss, inference state size, adaptive sampling, SQLite commit
+count, and false-positive filtering.
+
 Generate all experiment summaries first:
 
 ```bash
@@ -22,3 +26,10 @@ python3 dashboard/app.py
 ```
 
 Open `dashboard/index.html` in a browser.
+
+Notes:
+
+- The generated HTML is a local artifact and is ignored by git.
+- The dashboard does not call an external API or send data anywhere.
+- If a future screenshot or demo video is added, regenerate it from this local HTML so
+  it reflects tracked code and synthetic data.
