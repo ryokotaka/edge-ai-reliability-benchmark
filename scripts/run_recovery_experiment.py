@@ -99,7 +99,10 @@ def main() -> None:
         failure_start_seq=args.failure_start_seq,
         failure_length=args.failure_length,
     )
+    output_path = args.output_dir / "summary.json"
+    output_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     print(json.dumps(result, indent=2, sort_keys=True))
+    print(f"wrote_summary={output_path}")
 
 
 if __name__ == "__main__":

@@ -29,8 +29,8 @@ reliability metrics, a local buffer / checkpoint recovery experiment, and a
 lightweight anomaly scoring experiment that compares float-like and quantized-like
 inference state. It also includes an adaptive sampling experiment that compares
 fixed 1 Hz inference against lower-frequency stable-period sampling, plus a SQLite
-batch-write experiment and a small hysteresis filter experiment for transient false
-positives. The dashboard is not implemented yet.
+batch-write experiment, a small hysteresis filter experiment for transient false
+positives, and a local static HTML dashboard for comparing experiment summaries.
 
 ## Architecture
 
@@ -108,6 +108,14 @@ synthetic transient spikes
   -> threshold-only anomaly alerts
   -> 2-sample hysteresis filter
   -> compare false positives, recall, F1, and detection delay
+```
+
+The local dashboard flow is:
+
+```text
+experiment summary JSON files
+  -> dashboard/app.py
+  -> dashboard/index.html
 ```
 
 ## Metrics
@@ -189,8 +197,11 @@ python3 scripts/run_inference_experiment.py
 python3 scripts/run_sampling_experiment.py
 python3 scripts/run_batch_write_experiment.py
 python3 scripts/run_stability_filter_experiment.py
+python3 dashboard/app.py
 python3 -m pytest
 ```
+
+Open `dashboard/index.html` in a browser to inspect the current experiment summary.
 
 ## Example Results
 
@@ -334,6 +345,7 @@ thermal behavior, and optional power usage.
 - adaptive sampling currently estimates inference-work reduction, not real power draw
 - batch-write timing is machine-dependent until measured on target hardware
 - hysteresis filtering is evaluated on a small synthetic challenge stream
+- the dashboard is static HTML generated from local summary JSON files
 - no cloud backend
 - no large ML model
 - no camera input
@@ -347,7 +359,7 @@ conditions.
 
 - connect BME280 sensor
 - add MPU-6050 motion sensor
-- add Streamlit dashboard
+- add richer dashboard filtering or a Streamlit view if static HTML becomes limiting
 - tune rolling-window / hysteresis anomaly filtering on real sensor data
 - compare real sensor data with synthetic fault injection
 - add local buffering and checkpoint recovery

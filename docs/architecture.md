@@ -60,3 +60,11 @@ synthetic transient spikes
   -> consecutive-anomaly hysteresis filter
   -> false_positive / recall / detection_delay comparison
 ```
+
+v6 adds a local static dashboard:
+
+```text
+data/*_experiment/summary.json
+  -> dashboard/app.py
+  -> dashboard/index.html
+```
