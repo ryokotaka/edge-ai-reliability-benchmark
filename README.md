@@ -216,4 +216,4 @@ python3 -m pytest
 
 ## License
 
-No license file is currently included. Add one before inviting external reuse.
+MIT License. See `LICENSE`.
