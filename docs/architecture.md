@@ -51,3 +51,12 @@ CSV readings
   -> batched SQLite writes
   -> insert_calls / commit_count / elapsed_ms comparison
 ```
+
+v5 adds a stability filter for transient false positives:
+
+```text
+synthetic transient spikes
+  -> threshold-only anomaly alerts
+  -> consecutive-anomaly hysteresis filter
+  -> false_positive / recall / detection_delay comparison
+```

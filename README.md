@@ -29,7 +29,8 @@ reliability metrics, a local buffer / checkpoint recovery experiment, and a
 lightweight anomaly scoring experiment that compares float-like and quantized-like
 inference state. It also includes an adaptive sampling experiment that compares
 fixed 1 Hz inference against lower-frequency stable-period sampling, plus a SQLite
-batch-write experiment. The dashboard is not implemented yet.
+batch-write experiment and a small hysteresis filter experiment for transient false
+positives. The dashboard is not implemented yet.
 
 ## Architecture
 
@@ -46,10 +47,10 @@ synthetic sensor data
 
 ## Current Version
 
-`v4` uses synthetic environmental sensor data instead of real hardware.
+`v5` uses synthetic environmental sensor data instead of real hardware.
 The goal is to make the reliability, recovery, lightweight inference, adaptive
-sampling, and storage-write pipeline measurable before adding Raspberry Pi hardware
-and real sensor constraints.
+sampling, storage-write, and false-positive filtering pipeline measurable before
+adding Raspberry Pi hardware and real sensor constraints.
 
 The base measurement flow is:
 
@@ -100,6 +101,15 @@ CSV readings
   -> compare insert calls, commit count, and elapsed write time
 ```
 
+The fifth software optimization experiment is:
+
+```text
+synthetic transient spikes
+  -> threshold-only anomaly alerts
+  -> 2-sample hysteresis filter
+  -> compare false positives, recall, F1, and detection delay
+```
+
 ## Metrics
 
 | Metric | Meaning |
@@ -110,6 +120,8 @@ CSV readings
 | `recovery_loss` | Expected sequence slots absent after a restart or write failure |
 | `inference_latency_ms` | Time spent in lightweight anomaly detection |
 | `memory_mb` | Approximate memory usage during inference |
+| `false_positive` | Normal or transient rows incorrectly flagged as anomalies |
+| `detection_delay_samples` | How many samples later an optimized alert is confirmed |
 
 The v0 implementation calculates `missing_rate`, `p95_latency_ms`, and
 `uptime_ratio`. The v1 recovery experiment also calculates `recovery_loss`.
@@ -117,7 +129,8 @@ The v2 inference experiment calculates precision, recall, F1, p95 inference
 latency, and model state size. This is lightweight anomaly scoring, not a neural
 network model yet. The v3 adaptive sampling experiment estimates inference-work
 reduction and measures the detection-quality trade-off. The v4 batch-write experiment
-measures SQLite write-call and commit-count reduction.
+measures SQLite write-call and commit-count reduction. The v5 stability-filter
+experiment measures false-positive reduction against detection delay.
 
 ## Optimization Plan
 
@@ -130,6 +143,7 @@ pipeline against software-level optimizations.
 | storage latency | batch writes | p95 latency / write count |
 | heavy inference | quantization / smaller model | inference latency / memory / accuracy drop |
 | wasted work during normal periods | adaptive sampling | CPU / power / event detection quality |
+| transient noisy spikes | hysteresis / smoothing | false positives / recall / detection delay |
 
 The first planned optimization is local buffering and checkpoint recovery. The second
 is quantized or smaller lightweight inference.
@@ -174,6 +188,7 @@ python3 scripts/run_recovery_experiment.py
 python3 scripts/run_inference_experiment.py
 python3 scripts/run_sampling_experiment.py
 python3 scripts/run_batch_write_experiment.py
+python3 scripts/run_stability_filter_experiment.py
 python3 -m pytest
 ```
 
@@ -275,6 +290,30 @@ This result shows why batching matters for local storage: fewer commits can grea
 reduce write overhead. The timing is machine-dependent and should be re-measured on
 Raspberry Pi before making hardware claims.
 
+## Threshold Alerts vs Hysteresis Filter
+
+The current stability-filter experiment creates a small synthetic challenge stream
+with two transient spikes that should not count as true anomalies and one sustained
+six-sample anomaly window. The baseline flags any row above the threshold. The
+optimized path confirms an anomaly only after two consecutive threshold crossings.
+
+| Metric | Threshold only | Hysteresis filter | Change |
+| --- | ---: | ---: | ---: |
+| evaluated samples | 120 | 120 | 0 |
+| true anomalies | 6 | 6 | 0 |
+| predicted anomalies | 8 | 5 | -3 |
+| true positives | 6 | 5 | -1 |
+| false positives | 2 | 0 | -2 |
+| false negatives | 0 | 1 | +1 |
+| precision | 0.7500 | 1.0000 | +0.2500 |
+| recall | 1.0000 | 0.8333 | -0.1667 |
+| F1 | 0.8571 | 0.9091 | +0.0520 |
+| first detected anomaly seq | 95 | 96 | +1 sample |
+
+This is another trade-off: a tiny hysteresis policy removes single-sample false
+positives, but it delays sustained-anomaly confirmation by one sample and misses the
+first row of that anomaly window.
+
 ## Planned Hardware
 
 The first hardware target is:
@@ -294,6 +333,7 @@ thermal behavior, and optional power usage.
 - lightweight inference is statistical anomaly scoring, not a neural network
 - adaptive sampling currently estimates inference-work reduction, not real power draw
 - batch-write timing is machine-dependent until measured on target hardware
+- hysteresis filtering is evaluated on a small synthetic challenge stream
 - no cloud backend
 - no large ML model
 - no camera input
@@ -308,10 +348,11 @@ conditions.
 - connect BME280 sensor
 - add MPU-6050 motion sensor
 - add Streamlit dashboard
-- add rolling-window anomaly detection
+- tune rolling-window / hysteresis anomaly filtering on real sensor data
 - compare real sensor data with synthetic fault injection
 - add local buffering and checkpoint recovery
 - compare float32 vs quantized lightweight inference on Raspberry Pi
 - tune fixed sampling vs adaptive sampling on Raspberry Pi
 - re-measure direct vs batched SQLite writes on Raspberry Pi storage
+- measure false-positive filtering and detection delay on real sensor streams
 - add a short 90-second demo

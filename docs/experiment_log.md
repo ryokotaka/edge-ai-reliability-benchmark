@@ -7,3 +7,4 @@
 | 2026-05-08 | v2 quantized anomaly scoring | float-like F1 0.9600, quantized-like F1 0.9600, state size 48 bytes -> 6 bytes | Python timing is too small for hardware claims |
 | 2026-05-08 | v3 adaptive sampling | sampled rows 1738 -> 1470, estimated inference reduction 15.42%, F1 0.9600 -> 0.8696 | Trade-off: fewer inferences but more missed anomalies |
 | 2026-05-08 | v4 batch SQLite writes | insert calls 1800 -> 18, commits 1800 -> 18, elapsed ~5.5 s -> ~67 ms | Timing is machine-dependent; write-call reduction is the stable result |
+| 2026-05-08 | v5 hysteresis false-positive filter | false positives 2 -> 0, precision 0.7500 -> 1.0000, recall 1.0000 -> 0.8333 | Trade-off: removes single-sample false alerts but confirms sustained anomalies 1 sample later |

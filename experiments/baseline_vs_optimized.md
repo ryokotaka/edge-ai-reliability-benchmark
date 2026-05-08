@@ -23,6 +23,7 @@ SQLite after recovery.
 | memory usage on Raspberry Pi | TBD MB | TBD MB | constrained-device fit |
 | adaptive sampling CPU / power | TBD | TBD | target-hardware sampling trade-off |
 | batch SQLite writes on Raspberry Pi | TBD ms | TBD ms | target-storage write overhead |
+| hysteresis filter on real sensor data | TBD | TBD | false-positive / detection-delay trade-off |
 
 ## v2 Float-like vs Quantized-like Anomaly Scoring
 
@@ -102,4 +103,32 @@ Interpretation:
 Batch writes dramatically reduce SQLite insert and commit overhead in the synthetic
 benchmark. The stable claim is the write-call and commit-count reduction; elapsed time
 must be re-measured on Raspberry Pi storage before making hardware claims.
+```
+
+## v5 Threshold Alerts vs Hysteresis Filter
+
+The fifth optimization experiment uses a small synthetic challenge stream with two
+single-sample transient spikes and one sustained six-sample noisy window. The baseline
+flags every threshold crossing. The optimized path requires two consecutive anomaly
+scores before confirming an alert.
+
+| Metric | Threshold only | Hysteresis filter | Interpretation |
+| --- | ---: | ---: | --- |
+| evaluated samples | 120 | 120 | same challenge stream |
+| true anomalies | 6 | 6 | sustained noisy window |
+| predicted anomalies | 8 | 5 | fewer alerts |
+| true positives | 6 | 5 | first sustained anomaly row is delayed |
+| false positives | 2 | 0 | single-sample transient spikes are suppressed |
+| false negatives | 0 | 1 | detection delay creates one missed sample |
+| precision | 0.7500 | 1.0000 | fewer false alerts |
+| recall | 1.0000 | 0.8333 | less immediate detection |
+| F1 | 0.8571 | 0.9091 | better balance on this synthetic stream |
+| first detected anomaly seq | 95 | 96 | one-sample confirmation delay |
+
+Interpretation:
+
+```text
+A small hysteresis filter removed transient false positives, but it delayed confirmed
+detection by one sample. This is useful for explaining false-positive control as a
+trade-off, not as a universally better detector.
 ```
