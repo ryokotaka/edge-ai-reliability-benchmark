@@ -27,7 +27,9 @@ This project is building a minimal edge AI reliability and optimization pipeline
 The current implementation covers synthetic data generation, SQLite storage,
 reliability metrics, a local buffer / checkpoint recovery experiment, and a
 lightweight anomaly scoring experiment that compares float-like and quantized-like
-inference state. Adaptive sampling and the dashboard are not implemented yet.
+inference state. It also includes an adaptive sampling experiment that compares
+fixed 1 Hz inference against lower-frequency stable-period sampling. The dashboard is
+not implemented yet.
 
 ## Architecture
 
@@ -44,9 +46,10 @@ synthetic sensor data
 
 ## Current Version
 
-`v2` uses synthetic environmental sensor data instead of real hardware.
-The goal is to make the reliability, recovery, and lightweight inference pipeline
-measurable before adding Raspberry Pi hardware and real sensor constraints.
+`v3` uses synthetic environmental sensor data instead of real hardware.
+The goal is to make the reliability, recovery, lightweight inference, and adaptive
+sampling pipeline measurable before adding Raspberry Pi hardware and real sensor
+constraints.
 
 The base measurement flow is:
 
@@ -79,6 +82,15 @@ SQLite / CSV readings
   -> compare detection quality, inference latency, and state size
 ```
 
+The third software optimization experiment is:
+
+```text
+quantized-like anomaly scorer
+  -> fixed 1 Hz inference baseline
+  -> adaptive sampling during stable periods
+  -> compare sampled rows, estimated inference reduction, recall, and F1
+```
+
 ## Metrics
 
 | Metric | Meaning |
@@ -94,7 +106,8 @@ The v0 implementation calculates `missing_rate`, `p95_latency_ms`, and
 `uptime_ratio`. The v1 recovery experiment also calculates `recovery_loss`.
 The v2 inference experiment calculates precision, recall, F1, p95 inference
 latency, and model state size. This is lightweight anomaly scoring, not a neural
-network model yet.
+network model yet. The v3 adaptive sampling experiment estimates inference-work
+reduction and measures the detection-quality trade-off.
 
 ## Optimization Plan
 
@@ -149,6 +162,7 @@ python3 -m edge_agent.storage data/sample.csv data/readings.sqlite
 python3 -m edge_agent.metrics data/readings.sqlite
 python3 scripts/run_recovery_experiment.py
 python3 scripts/run_inference_experiment.py
+python3 scripts/run_sampling_experiment.py
 python3 -m pytest
 ```
 
@@ -207,6 +221,31 @@ state in this small benchmark while preserving detection quality. Python-level t
 at this size is too small and variable to treat as hardware evidence; Raspberry Pi
 measurements are needed before making stronger latency claims.
 
+## Fixed Rate vs Adaptive Sampling
+
+The current adaptive sampling experiment uses the quantized-like anomaly scorer. The
+baseline evaluates every non-missing sample. The adaptive path samples every row at
+startup, then samples every 2 sequence slots after 120 stable samples, and returns to
+higher-frequency sampling for 30 samples after a detected anomaly.
+
+| Metric | Fixed 1 Hz | Adaptive sampling | Change |
+| --- | ---: | ---: | ---: |
+| evaluated samples | 1738 | 1738 | 0 |
+| sampled rows | 1738 | 1470 | -268 |
+| skipped rows | 0 | 268 | +268 |
+| estimated inference reduction | 0.0000 | 0.1542 | +15.42% |
+| detected anomalies | 12 | 10 | -2 |
+| missed anomalies | 1 | 3 | +2 |
+| skipped anomalies | 0 | 2 | +2 |
+| precision | 1.0000 | 1.0000 | 0 |
+| recall | 0.9231 | 0.7692 | -0.1539 |
+| F1 | 0.9600 | 0.8696 | -0.0904 |
+
+This is a trade-off, not a free improvement: adaptive sampling reduces estimated
+inference work by about 15%, but it misses more isolated noisy samples in the current
+synthetic stream. The next step is to tune the policy and measure CPU, latency, and
+power on target hardware.
+
 ## Planned Hardware
 
 The first hardware target is:
@@ -224,6 +263,7 @@ thermal behavior, and optional power usage.
 
 - v0 uses synthetic data only
 - lightweight inference is statistical anomaly scoring, not a neural network
+- adaptive sampling currently estimates inference-work reduction, not real power draw
 - no cloud backend
 - no large ML model
 - no camera input
@@ -242,5 +282,5 @@ conditions.
 - compare real sensor data with synthetic fault injection
 - add local buffering and checkpoint recovery
 - compare float32 vs quantized lightweight inference on Raspberry Pi
-- compare fixed sampling vs adaptive sampling
+- tune fixed sampling vs adaptive sampling on Raspberry Pi
 - add a short 90-second demo

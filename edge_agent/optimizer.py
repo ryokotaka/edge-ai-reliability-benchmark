@@ -6,5 +6,5 @@ def describe_optimization_scope() -> list[str]:
         "local buffer / checkpoint recovery",
         "float-like vs quantized lightweight anomaly scoring",
         "batch SQLite writes",
-        "adaptive sampling",
+        "fixed-rate vs adaptive sampling",
     ]

@@ -21,7 +21,7 @@ SQLite after recovery.
 | --- | ---: | ---: | --- |
 | inference latency on Raspberry Pi | TBD ms | TBD ms | quantization effect on target hardware |
 | memory usage on Raspberry Pi | TBD MB | TBD MB | constrained-device fit |
-| adaptive sampling CPU / power | TBD | TBD | sampling trade-off |
+| adaptive sampling CPU / power | TBD | TBD | target-hardware sampling trade-off |
 
 ## v2 Float-like vs Quantized-like Anomaly Scoring
 
@@ -48,4 +48,34 @@ Interpretation:
 Quantized-like scoring preserved detection quality and reduced stored model state
 in this small synthetic benchmark. Timing must be re-measured on Raspberry Pi before
 claiming target-device latency improvement.
+```
+
+## v3 Fixed 1 Hz vs Adaptive Sampling
+
+The third optimization experiment uses the quantized-like anomaly scorer. The baseline
+evaluates every non-missing row. The adaptive policy samples every row during startup,
+then samples every 2 sequence slots after 120 stable samples, and holds high-frequency
+sampling for 30 samples after a detected anomaly.
+
+| Metric | Fixed 1 Hz | Adaptive sampling | Interpretation |
+| --- | ---: | ---: | --- |
+| evaluated samples | 1738 | 1738 | same non-missing stream |
+| sampled rows | 1738 | 1470 | adaptive policy skipped stable rows |
+| skipped rows | 0 | 268 | fewer inference calls |
+| estimated inference reduction | 0.0000 | 0.1542 | about 15% less inference work |
+| true anomalies | 13 | 13 | same ground truth |
+| detected anomalies | 12 | 10 | adaptive missed more isolated noisy rows |
+| missed anomalies | 1 | 3 | detection-quality cost |
+| skipped anomalies | 0 | 2 | sampling policy skipped two noisy rows |
+| precision | 1.0000 | 1.0000 | no false positives |
+| recall | 0.9231 | 0.7692 | recall dropped |
+| F1 | 0.9600 | 0.8696 | quality/work trade-off |
+
+Interpretation:
+
+```text
+Adaptive sampling reduced estimated inference work by about 15%, but recall and F1
+dropped because isolated noisy rows can be skipped. This is useful as a trade-off
+experiment, not as a final policy. The next version should tune the policy on target
+hardware and add CPU / power measurements.
 ```

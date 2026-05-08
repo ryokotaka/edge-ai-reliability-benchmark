@@ -33,3 +33,12 @@ synthetic sensor data
   -> quantized-like anomaly scorer
   -> precision / recall / F1 / state-size comparison
 ```
+
+v3 adds adaptive sampling:
+
+```text
+quantized-like anomaly scorer
+  -> fixed-rate baseline
+  -> adaptive stable-period skipping
+  -> sampled_count / recall / F1 comparison
+```

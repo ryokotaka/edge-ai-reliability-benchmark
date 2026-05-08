@@ -12,3 +12,4 @@ data/*.db
 data/*.sqlite
 data/recovery_experiment/
 data/inference_experiment/
+data/sampling_experiment/
