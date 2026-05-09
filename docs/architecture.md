@@ -14,6 +14,7 @@ synthetic sensor-like stream
   -> reliability metrics
   -> lightweight anomaly scoring
   -> tiny learned sensor model
+  -> exported quantized model artifact
   -> software optimization experiments
   -> summary JSON files
   -> static HTML dashboard
@@ -59,6 +60,7 @@ before the project adds real hardware noise.
 | v7 | Tiny learned model | Statistical scorer and float learned classifier | Quantized-like learned classifier |
 | v8 | Tiny model stress test | One deterministic synthetic split | Multi-seed aggregate over held-out synthetic splits |
 | v9 | Resource budget gate | Quality or size viewed separately | Proxy budget combining F1, false-negative rate, false positives, and state size |
+| v10 | Model artifact runtime | In-memory quantized model only | Exported JSON artifact loaded back for inference without retraining |
 
 ## Dashboard Layer
 

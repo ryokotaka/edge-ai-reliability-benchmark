@@ -17,6 +17,7 @@ dependency. The generated HTML is ignored by git because it is a local artifact.
 | tiny learned model | `data/tiny_model_experiment/summary.json` |
 | tiny model stress test | `data/tiny_model_stress_experiment/summary.json` |
 | resource budget gate | `data/resource_budget_experiment/summary.json` |
+| exported model artifact | `data/model_artifact_experiment/summary.json` |
 | adaptive sampling | `data/sampling_experiment/summary.json` |
 | batch writes | `data/batching_experiment/summary.json` |
 | hysteresis filter | `data/filtering_experiment/summary.json` |
@@ -31,6 +32,7 @@ python3 scripts/run_inference_experiment.py
 python3 scripts/run_tiny_model_experiment.py
 python3 scripts/run_tiny_model_stress_experiment.py
 python3 scripts/run_resource_budget_experiment.py
+python3 scripts/run_model_artifact_experiment.py
 python3 scripts/run_sampling_experiment.py
 python3 scripts/run_batch_write_experiment.py
 python3 scripts/run_stability_filter_experiment.py
@@ -49,6 +51,7 @@ existing before / after evidence easier to scan:
 - tiny learned model: statistical scorer vs float learned vs quantized learned
 - tiny model stress test: statistical vs learned models across multiple synthetic seeds
 - resource budget gate: which model passes proxy state-size and quality thresholds
+- exported model artifact: whether a saved quantized model can be loaded for inference without retraining
 - inference work: fixed 1 Hz vs adaptive sampling
 - SQLite commits: per-row writes vs batch writes
 - false positives: threshold-only vs hysteresis filtering

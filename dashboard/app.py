@@ -59,6 +59,7 @@ def load_dashboard_data(root: Path = ROOT) -> dict[str, dict[str, Any] | None]:
         "tiny_model": load_json(root / "data/tiny_model_experiment/summary.json"),
         "tiny_model_stress": load_json(root / "data/tiny_model_stress_experiment/summary.json"),
         "resource_budget": load_json(root / "data/resource_budget_experiment/summary.json"),
+        "model_artifact": load_json(root / "data/model_artifact_experiment/summary.json"),
         "sampling": load_json(root / "data/sampling_experiment/summary.json"),
         "batching": load_json(root / "data/batching_experiment/summary.json"),
         "filtering": load_json(root / "data/filtering_experiment/summary.json"),
@@ -151,6 +152,24 @@ def build_metric_cards(data: dict[str, dict[str, Any] | None]) -> list[MetricCar
                 after_value=recommended,
                 note=f"quantized state {quantized['model_state_bytes']} B, F1 {fmt_number(quantized['f1'])}",
                 tone="good" if resource_budget["recommended_model"] else "tradeoff",
+            )
+        )
+
+    model_artifact = data.get("model_artifact")
+    if model_artifact:
+        loaded = model_artifact["loaded_artifact"]
+        cards.append(
+            MetricCard(
+                title="Loaded artifact",
+                before_label="mismatches",
+                before_value=fmt_number(model_artifact["prediction_mismatch_count"]),
+                after_label="loaded F1",
+                after_value=fmt_number(loaded["f1"]),
+                note=(
+                    f"state {model_artifact['artifact_state_bytes']} B, "
+                    f"JSON {model_artifact['artifact_file_bytes']} B"
+                ),
+                tone="good" if model_artifact["artifact_matches_in_memory"] else "tradeoff",
             )
         )
 
@@ -393,6 +412,36 @@ def _resource_budget_section(summary: dict[str, Any] | None) -> str:
     """
 
 
+def _model_artifact_section(summary: dict[str, Any] | None) -> str:
+    if not summary:
+        return _missing_section(
+            "Exported Quantized Model Artifact",
+            "python3 scripts/run_model_artifact_experiment.py",
+        )
+    in_memory = summary["in_memory_quantized_like"]
+    loaded = summary["loaded_artifact"]
+    return f"""
+      <section class="section">
+        <h2>Exported Quantized Model Artifact</h2>
+        <p>Load-only runtime check: exported JSON artifact is loaded back without training and compared against the in-memory quantized model. JSON bytes are file encoding size, not a compact binary deployment format.</p>
+        {_table(
+            ["metric", "in-memory quantized", "loaded artifact"],
+            [
+                ["evaluated samples", in_memory["evaluated_count"], loaded["evaluated_count"]],
+                ["true positives", in_memory["true_positive"], loaded["true_positive"]],
+                ["false positives", in_memory["false_positive"], loaded["false_positive"]],
+                ["false negatives", in_memory["false_negative"], loaded["false_negative"]],
+                ["precision", fmt_number(in_memory["precision"]), fmt_number(loaded["precision"])],
+                ["recall", fmt_number(in_memory["recall"]), fmt_number(loaded["recall"])],
+                ["F1", fmt_number(in_memory["f1"]), fmt_number(loaded["f1"])],
+                ["state bytes", in_memory["model_state_bytes"], loaded["model_state_bytes"]],
+            ],
+        )}
+        <p>Prediction mismatches: {summary['prediction_mismatch_count']}. Max probability difference: {fmt_number(summary['probability_max_abs_diff'])}. Artifact file size: {summary['artifact_file_bytes']} bytes.</p>
+      </section>
+    """
+
+
 def _sampling_section(summary: dict[str, Any] | None) -> str:
     if not summary:
         return _missing_section("Adaptive Sampling", "python3 scripts/run_sampling_experiment.py")
@@ -579,7 +628,7 @@ def build_dashboard_html(root: Path = ROOT) -> str:
   <main>
     <header>
       <h1>Edge AI Reliability Benchmark Dashboard</h1>
-      <p>Local summary of reliability, lightweight inference, tiny learned model stress tests, resource-budget checks, adaptive sampling, SQLite batching, and false-positive filtering experiments.</p>
+      <p>Local summary of reliability, lightweight inference, tiny learned model stress tests, resource-budget checks, exported model artifacts, adaptive sampling, SQLite batching, and false-positive filtering experiments.</p>
       <div class="meta">Generated at {escape(generated_at)}</div>
     </header>
 
@@ -593,6 +642,7 @@ def build_dashboard_html(root: Path = ROOT) -> str:
       {_tiny_model_section(data["tiny_model"])}
       {_tiny_model_stress_section(data["tiny_model_stress"])}
       {_resource_budget_section(data["resource_budget"])}
+      {_model_artifact_section(data["model_artifact"])}
       {_sampling_section(data["sampling"])}
       {_batching_section(data["batching"])}
       {_filtering_section(data["filtering"])}

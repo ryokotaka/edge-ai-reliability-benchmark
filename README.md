@@ -20,7 +20,7 @@ pipeline onto Raspberry Pi hardware and real sensors.
 | Storage | Local SQLite readings table |
 | Inference | Lightweight statistical scoring and a standard-library tiny learned model |
 | Reliability metrics | Missing rate, p95 latency, uptime ratio, recovery loss |
-| Optimization experiments | Local buffer, batch writes, quantized-like scoring, tiny model quantization/stress test, resource budget gate, adaptive sampling, hysteresis filter |
+| Optimization experiments | Local buffer, batch writes, quantized-like scoring, tiny model quantization/stress test, resource budget gate, exported model artifact, adaptive sampling, hysteresis filter |
 | Dashboard | Dependency-free static HTML generated from local experiment summaries |
 | Cost / cloud | No paid API, no cloud backend, no external service dependency |
 
@@ -35,6 +35,7 @@ for the engineering questions that appear before a product exists:
 - Can a trainable tiny model match the statistical scorer on held-out synthetic data?
 - Does that tiny-model result survive multiple synthetic seeds?
 - Which model still passes a small edge-style resource budget?
+- Can the selected tiny model be exported and loaded without retraining?
 - How much inference work can be skipped before recall drops?
 - How much overhead comes from committing every SQLite row separately?
 - Can a tiny stability filter remove transient false alerts, and what delay does it add?
@@ -64,6 +65,7 @@ python3 scripts/run_inference_experiment.py
 python3 scripts/run_tiny_model_experiment.py
 python3 scripts/run_tiny_model_stress_experiment.py
 python3 scripts/run_resource_budget_experiment.py
+python3 scripts/run_model_artifact_experiment.py
 python3 scripts/run_sampling_experiment.py
 python3 scripts/run_batch_write_experiment.py
 python3 scripts/run_stability_filter_experiment.py
@@ -90,6 +92,7 @@ synthetic sensor-like data
   -> reliability metrics
   -> lightweight anomaly detection
   -> tiny learned sensor model
+  -> exported quantized model artifact
   -> software optimization experiments
   -> local dashboard
   -> experiment notes
@@ -111,6 +114,7 @@ software behavior, not for claiming real hardware performance.
 | Tiny learned model | 104 B state, F1 1.0000 | 42 B state, F1 1.0000 | Quantized learned model matches float learned model on the held-out split | Synthetic test split has only 3 anomaly rows |
 | Tiny model stress test | Statistical F1 0.8767 | Quantized learned F1 0.9487 | 7 deterministic seeds cover 41 held-out anomaly rows | Still synthetic; no hardware timing claim |
 | Resource budget gate | Max state 64 B, min F1 0.9000 | Quantized tiny model passes | Float model fails state budget; statistical scorer fails quality budget | Budget is a proxy, not measured RAM/CPU |
+| Model artifact runtime | In-memory quantized F1 1.0000 | Loaded artifact F1 1.0000 | Exported JSON artifact reloads with 0 prediction mismatches | JSON file size is not compact binary deployment size |
 | Adaptive sampling | 1738 sampled rows, F1 0.9600 | 1470 sampled rows, F1 0.8696 | About 15.42% fewer inferred rows | Recall drops because isolated anomalies can be skipped |
 | Batch SQLite writes | 1800 commits | 18 commits | Commit count drops by 1782 | Wall-clock timing must be re-measured on target storage |
 | Hysteresis filter | 2 false positives, recall 1.0000 | 0 false positives, recall 0.8333 | Single-sample false alerts are removed | Sustained anomaly confirmation is delayed by 1 sample |
@@ -256,6 +260,37 @@ presented as measured hardware resource usage.
 </details>
 
 <details>
+<summary><strong>v10 Exported Quantized Model Artifact</strong></summary>
+
+This experiment checks the next deployment-shaped step: train and quantize the tiny
+model once, export only the quantized runtime state, load that artifact back, and run
+inference without retraining.
+
+The artifact is JSON so it stays easy to inspect in a student project. The important
+runtime state is still the 42-byte quantized model state; the 929-byte JSON file size
+is a readable storage format, not a claim about compact binary deployment.
+
+| Metric | In-memory quantized model | Loaded artifact |
+| --- | ---: | ---: |
+| evaluated samples | 522 | 522 |
+| true anomalies | 3 | 3 |
+| true positives | 3 | 3 |
+| false positives | 0 | 0 |
+| false negatives | 0 | 0 |
+| precision | 1.0000 | 1.0000 |
+| recall | 1.0000 | 1.0000 |
+| F1 | 1.0000 | 1.0000 |
+| model state size | 42 bytes | 42 bytes |
+| prediction mismatches | 0 | 0 |
+| max probability difference | 0.0000 | 0.0000 |
+
+This does not make hardware claims. It makes the runtime boundary clearer: the device
+side can be shaped as `load small model state -> infer`, while training remains an
+offline local step.
+
+</details>
+
+<details>
 <summary><strong>v3 Fixed 1 Hz vs Adaptive Sampling</strong></summary>
 
 This experiment uses the quantized-like anomaly scorer. The baseline evaluates every
@@ -338,6 +373,7 @@ The same result trail is also kept in separate notes:
 - `experiments/tiny_model.md`
 - `experiments/tiny_model_stress.md`
 - `experiments/resource_budget.md`
+- `experiments/model_artifact.md`
 - `experiments/adaptive_sampling.md`
 - `experiments/batch_writes.md`
 - `experiments/stability_filter.md`
@@ -358,11 +394,12 @@ The repository is organized around small, testable pieces:
 | `edge_agent/tiny_model.py` | Trains and compares a tiny learned sensor classifier |
 | `edge_agent/tiny_model_stress.py` | Aggregates tiny model results across multiple synthetic seeds |
 | `edge_agent/resource_budget.py` | Checks model choices against a proxy edge-style resource budget |
+| `edge_agent/model_artifact.py` | Exports and reloads the quantized tiny model runtime state |
 | `edge_agent/sampling.py` | Implements fixed-rate vs adaptive sampling comparison |
 | `edge_agent/batching.py` | Compares per-row vs batched SQLite writes |
 | `edge_agent/stability_filter.py` | Compares threshold alerts vs hysteresis filtering |
 | `dashboard/app.py` | Builds a static HTML report from local summary JSON files |
-| `tests/` | Covers metrics, recovery buffer, inference, tiny-model stress aggregation, sampling, batching, filtering, and dashboard generation |
+| `tests/` | Covers metrics, recovery buffer, inference, tiny-model stress aggregation, model artifacts, sampling, batching, filtering, and dashboard generation |
 
 ## Metrics
 
@@ -380,6 +417,7 @@ The repository is organized around small, testable pieces:
 | `detection_delay_samples` | How many samples later a filtered alert is confirmed |
 | `mean_seed_f1` / `min_seed_f1` | Multi-seed stress-test stability indicators |
 | `passes_all` | Whether a model clears all configured resource-budget checks |
+| `prediction_mismatch_count` | Difference between in-memory model predictions and loaded artifact predictions |
 
 ## Why This Is Engineering-Focused
 

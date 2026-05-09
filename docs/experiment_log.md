@@ -12,3 +12,4 @@
 | 2026-05-09 | v7 tiny learned sensor model | float learned F1 1.0000, quantized learned F1 1.0000, state size 104 bytes -> 42 bytes | Standard-library logistic classifier on a fixed chronological synthetic split; test split has 3 anomaly rows |
 | 2026-05-09 | v8 tiny model multi-seed stress test | statistical F1 0.8767, float learned F1 0.9487, quantized learned F1 0.9487 across 41 held-out anomalies | 7 deterministic synthetic seeds; still not hardware evidence |
 | 2026-05-09 | v9 resource budget gate | quantized tiny model is the only model passing max state 64 B, min F1 0.9000, max false-negative rate 10%, and zero false positives | Proxy edge-style budget; not measured RAM, CPU, latency, or power |
+| 2026-05-09 | v10 exported quantized model artifact | loaded artifact F1 1.0000, 0 prediction mismatches, 42-byte model state, 929-byte JSON artifact | Runtime-boundary check; JSON artifact is readable storage, not compact binary deployment |

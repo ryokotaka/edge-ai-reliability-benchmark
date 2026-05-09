@@ -33,6 +33,13 @@ def test_build_metric_cards_from_summaries() -> None:
                     "learned_quantized_like": {"model_state_bytes": 42, "f1": 0.9487},
                 },
             },
+            "model_artifact": {
+                "artifact_matches_in_memory": True,
+                "artifact_state_bytes": 42,
+                "artifact_file_bytes": 840,
+                "prediction_mismatch_count": 0,
+                "loaded_artifact": {"f1": 1.0},
+            },
             "sampling": {
                 "fixed_1hz": {"sampled_count": 100},
                 "adaptive": {"sampled_count": 80, "estimated_inference_reduction": 0.2},
@@ -56,6 +63,7 @@ def test_build_metric_cards_from_summaries() -> None:
         "Tiny model F1",
         "Stress-test F1",
         "Resource budget",
+        "Loaded artifact",
         "Inference work",
         "SQLite commits",
         "False positives",
