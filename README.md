@@ -103,7 +103,135 @@ comparing software behavior, not for claiming real hardware performance.
 | Batch SQLite writes | 1800 commits | 18 commits | Commit count drops by 1782 | Wall-clock timing must be re-measured on target storage |
 | Hysteresis filter | 2 false positives, recall 1.0000 | 0 false positives, recall 0.8333 | Single-sample false alerts are removed | Sustained anomaly confirmation is delayed by 1 sample |
 
-More detail is in:
+## Detailed Experiment Results
+
+The README keeps the full result tables close to the project overview because many
+readers will not open separate experiment files. Each section is collapsed by default
+so the top-level README stays skimmable.
+
+<details>
+<summary><strong>v1 Local Buffer / Checkpoint Recovery</strong></summary>
+
+This experiment simulates a SQLite write failure for sequence `600..719`. The baseline
+direct-write path loses those rows. The optimized path writes them to a local JSONL
+buffer, records a checkpoint, and flushes them to SQLite after recovery.
+
+| Metric | Baseline direct write | Buffered recovery | Interpretation |
+| --- | ---: | ---: | --- |
+| observed samples | 1680 | 1800 | local buffer recovered the write-failure window |
+| missing rate | 0.0989 | 0.0344 | recovery removed absent sequence slots |
+| p95 latency | 125.789 ms | 132.089 ms | recovered rows include original jitter distribution |
+| uptime ratio | 0.8900 | 0.9539 | recovered ok rows restore uptime accounting |
+| recovery loss | 120 samples | 0 samples | checkpoint recovery effect |
+
+This is intentionally narrow: buffering reduces recovery loss, but it does not remove
+the unrelated synthetic dropout already present in the stream.
+
+</details>
+
+<details>
+<summary><strong>v2 Float-like vs Quantized-like Anomaly Scoring</strong></summary>
+
+This is lightweight anomaly scoring, not a neural-network benchmark. It treats
+`status = noisy` as the synthetic ground-truth anomaly label and compares float-like
+scoring with quantized-like integer scoring.
+
+| Metric | Float-like scoring | Quantized-like scoring | Interpretation |
+| --- | ---: | ---: | --- |
+| evaluated samples | 1738 | 1738 | missing rows are excluded from inference |
+| true anomalies | 13 | 13 | synthetic noisy rows |
+| true positives | 12 | 12 | same detected anomalies |
+| false positives | 0 | 0 | no normal rows flagged |
+| false negatives | 1 | 1 | one noisy row below threshold |
+| precision | 1.0000 | 1.0000 | no false positives |
+| recall | 0.9231 | 0.9231 | one missed noisy row |
+| F1 | 0.9600 | 0.9600 | detection quality preserved |
+| p95 inference latency | ~0.002 ms | ~0.001 ms | Python-level timing only |
+| model state size | 48 bytes | 6 bytes | quantized-like state is smaller |
+
+Quantized-like scoring preserved detection quality and reduced stored state size in
+this synthetic benchmark. The timing numbers are too small and Python-dependent to use
+as hardware evidence.
+
+</details>
+
+<details>
+<summary><strong>v3 Fixed 1 Hz vs Adaptive Sampling</strong></summary>
+
+This experiment uses the quantized-like anomaly scorer. The baseline evaluates every
+non-missing row. The adaptive policy samples every row during startup, then samples
+every 2 sequence slots after 120 stable samples, and temporarily returns to every-row
+sampling after a detected anomaly.
+
+| Metric | Fixed 1 Hz | Adaptive sampling | Interpretation |
+| --- | ---: | ---: | --- |
+| evaluated samples | 1738 | 1738 | same non-missing stream |
+| sampled rows | 1738 | 1470 | adaptive policy skipped stable rows |
+| skipped rows | 0 | 268 | fewer inference calls |
+| estimated inference reduction | 0.0000 | 0.1542 | about 15% less inference work |
+| true anomalies | 13 | 13 | same ground truth |
+| detected anomalies | 12 | 10 | adaptive missed more isolated noisy rows |
+| missed anomalies | 1 | 3 | detection-quality cost |
+| skipped anomalies | 0 | 2 | sampling policy skipped two noisy rows |
+| precision | 1.0000 | 1.0000 | no false positives |
+| recall | 0.9231 | 0.7692 | recall dropped |
+| F1 | 0.9600 | 0.8696 | quality/work trade-off |
+
+Adaptive sampling reduced estimated inference work by about 15%, but recall and F1
+dropped because isolated noisy rows can be skipped. This is a trade-off experiment,
+not a final policy.
+
+</details>
+
+<details>
+<summary><strong>v4 Direct SQLite Writes vs Batched SQLite Writes</strong></summary>
+
+This experiment compares one-row SQLite writes against batched writes of 100 rows.
+Both paths write the same 1800 synthetic readings.
+
+| Metric | Direct per-row writes | Batched writes | Interpretation |
+| --- | ---: | ---: | --- |
+| rows written | 1800 | 1800 | same data |
+| batch size | 1 | 100 | optimized path groups rows |
+| insert calls | 1800 | 18 | fewer write calls |
+| commit count | 1800 | 18 | fewer durable commits |
+| rows per insert call | 1 | 100 | less per-row overhead |
+| rows per commit | 1 | 100 | less commit overhead |
+| elapsed write time | ~5.5 s | ~67 ms | local-machine example only |
+
+The stable result is the reduction in insert calls and commit count. Wall-clock timing
+must be repeated on Raspberry Pi storage before making hardware-performance claims.
+
+</details>
+
+<details>
+<summary><strong>v5 Threshold Alerts vs Hysteresis Filter</strong></summary>
+
+This experiment uses a small synthetic challenge stream with two single-sample
+transient spikes and one sustained six-sample noisy window. The baseline flags every
+threshold crossing. The optimized path requires two consecutive anomaly scores before
+confirming an alert.
+
+| Metric | Threshold only | Hysteresis filter | Interpretation |
+| --- | ---: | ---: | --- |
+| evaluated samples | 120 | 120 | same challenge stream |
+| true anomalies | 6 | 6 | sustained noisy window |
+| predicted anomalies | 8 | 5 | fewer alerts |
+| true positives | 6 | 5 | first sustained anomaly row is delayed |
+| false positives | 2 | 0 | single-sample transient spikes are suppressed |
+| false negatives | 0 | 1 | detection delay creates one missed sample |
+| precision | 0.7500 | 1.0000 | fewer false alerts |
+| recall | 1.0000 | 0.8333 | less immediate detection |
+| F1 | 0.8571 | 0.9091 | better balance on this synthetic stream |
+| first detected anomaly seq | 95 | 96 | one-sample confirmation delay |
+
+The hysteresis filter removed transient false positives, but it delayed confirmed
+detection by one sample. This is useful for explaining false-positive control as a
+trade-off, not as a universally better detector.
+
+</details>
+
+The same result trail is also kept in separate notes:
 
 - `experiments/baseline_vs_optimized.md`
 - `experiments/inference_quantization.md`
