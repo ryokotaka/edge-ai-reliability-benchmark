@@ -1,8 +1,9 @@
 # Architecture
 
-This project is a small edge-AI reliability benchmark. The current implementation runs
-on a laptop with synthetic data, but the pipeline is shaped so the same measurements
-can move to Raspberry Pi and real sensors later.
+This project is a small sensor-inference reliability benchmark for edge-AI-style
+systems. The current implementation runs on a laptop with synthetic data, but the
+pipeline is shaped so the same measurements can move to Raspberry Pi and real sensors
+later.
 
 ## Current Pipeline
 
@@ -12,6 +13,7 @@ synthetic sensor-like stream
   -> SQLite readings table
   -> reliability metrics
   -> lightweight anomaly scoring
+  -> tiny learned sensor model
   -> software optimization experiments
   -> summary JSON files
   -> static HTML dashboard
@@ -54,6 +56,7 @@ before the project adds real hardware noise.
 | v4 | Storage writes | Per-row SQLite insert and commit | Batch insert and commit |
 | v5 | Alert stability | Threshold-only alerting | 2-sample hysteresis confirmation |
 | v6 | Result viewing | Markdown and JSON summaries | Local static dashboard |
+| v7 | Tiny learned model | Statistical scorer and float learned classifier | Quantized-like learned classifier |
 
 ## Dashboard Layer
 
@@ -72,5 +75,6 @@ reproducible and easy to audit:
 - no remote database
 - no private data source
 - no camera input
+- no external machine-learning framework
 - no Kubernetes or distributed orchestration
 - no hardware-performance claims until Raspberry Pi measurements exist

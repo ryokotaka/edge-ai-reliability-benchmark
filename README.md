@@ -1,11 +1,12 @@
 # Edge AI Reliability Benchmark
 
-A student-scale systems project for checking whether a small edge-AI pipeline keeps
-working when sensor-like data is missing, noisy, delayed, or interrupted.
+A student-scale systems project for checking whether a small edge-AI-style sensor
+inference pipeline keeps working when data is missing, noisy, delayed, or interrupted.
 
 In plain terms: this repository creates a small stream of environmental sensor data,
-stores it locally, runs lightweight anomaly detection, intentionally introduces
-failure cases, and compares simple software fixes against baseline behavior.
+stores it locally, runs lightweight anomaly detection and a tiny learned model,
+intentionally introduces failure cases, and compares simple software fixes against
+baseline behavior.
 
 The current version uses synthetic data on a laptop. That is intentional: the goal is
 to make the measurement and optimization loop reproducible before moving the same
@@ -17,9 +18,9 @@ pipeline onto Raspberry Pi hardware and real sensors.
 | --- | --- |
 | Data source | Deterministic synthetic temperature / humidity / pressure stream |
 | Storage | Local SQLite readings table |
-| Inference | Lightweight statistical anomaly scoring, not a neural network yet |
+| Inference | Lightweight statistical scoring and a standard-library tiny learned model |
 | Reliability metrics | Missing rate, p95 latency, uptime ratio, recovery loss |
-| Optimization experiments | Local buffer, batch writes, quantized-like scoring, adaptive sampling, hysteresis filter |
+| Optimization experiments | Local buffer, batch writes, quantized-like scoring, tiny model quantization, adaptive sampling, hysteresis filter |
 | Dashboard | Dependency-free static HTML generated from local experiment summaries |
 | Cost / cloud | No paid API, no cloud backend, no external service dependency |
 
@@ -31,6 +32,7 @@ for the engineering questions that appear before a product exists:
 - What happens when local writes fail?
 - How much data can a checkpoint buffer recover?
 - Can a smaller inference state preserve detection quality?
+- Can a trainable tiny model match the statistical scorer on held-out synthetic data?
 - How much inference work can be skipped before recall drops?
 - How much overhead comes from committing every SQLite row separately?
 - Can a tiny stability filter remove transient false alerts, and what delay does it add?
@@ -57,6 +59,7 @@ python3 -m edge_agent.metrics data/readings.sqlite
 
 python3 scripts/run_recovery_experiment.py
 python3 scripts/run_inference_experiment.py
+python3 scripts/run_tiny_model_experiment.py
 python3 scripts/run_sampling_experiment.py
 python3 scripts/run_batch_write_experiment.py
 python3 scripts/run_stability_filter_experiment.py
@@ -82,6 +85,7 @@ synthetic sensor-like data
   -> SQLite
   -> reliability metrics
   -> lightweight anomaly detection
+  -> tiny learned sensor model
   -> software optimization experiments
   -> local dashboard
   -> experiment notes
@@ -99,6 +103,7 @@ comparing software behavior, not for claiming real hardware performance.
 | --- | ---: | ---: | --- | --- |
 | Local write failure | 120 rows lost | 0 rows lost | JSONL buffer + checkpoint recovers the failed write window | Does not remove unrelated synthetic dropout |
 | Quantized-like scoring | 48 B state, F1 0.9600 | 6 B state, F1 0.9600 | Smaller stored state with same detection quality on this sample | Python timing is too small for hardware claims |
+| Tiny learned model | 104 B state, F1 1.0000 | 42 B state, F1 1.0000 | Quantized learned model matches float learned model on the held-out split | Synthetic test split has only 3 anomaly rows |
 | Adaptive sampling | 1738 sampled rows, F1 0.9600 | 1470 sampled rows, F1 0.8696 | About 15.42% fewer inferred rows | Recall drops because isolated anomalies can be skipped |
 | Batch SQLite writes | 1800 commits | 18 commits | Commit count drops by 1782 | Wall-clock timing must be re-measured on target storage |
 | Hysteresis filter | 2 false positives, recall 1.0000 | 0 false positives, recall 0.8333 | Single-sample false alerts are removed | Sustained anomaly confirmation is delayed by 1 sample |
@@ -152,6 +157,34 @@ scoring with quantized-like integer scoring.
 Quantized-like scoring preserved detection quality and reduced stored state size in
 this synthetic benchmark. The timing numbers are too small and Python-dependent to use
 as hardware evidence.
+
+</details>
+
+<details>
+<summary><strong>v7 Statistical Scorer vs Tiny Learned Sensor Model</strong></summary>
+
+This experiment adds a small trainable classifier without external ML libraries. It
+uses a fixed chronological split: 1216 train rows and 522 test rows. The label is
+`status = noisy` or `fault_type = noise`; the input features are normalized deviations
+from normal temperature, humidity, pressure, and latency values.
+
+| Metric | Statistical scorer | Float tiny model | Quantized tiny model |
+| --- | ---: | ---: | ---: |
+| evaluated samples | 522 | 522 | 522 |
+| true anomalies | 3 | 3 | 3 |
+| true positives | 3 | 3 | 3 |
+| false positives | 0 | 0 | 0 |
+| false negatives | 0 | 0 | 0 |
+| precision | 1.0000 | 1.0000 | 1.0000 |
+| recall | 1.0000 | 1.0000 | 1.0000 |
+| F1 | 1.0000 | 1.0000 | 1.0000 |
+| p95 inference latency | ~0.001 ms | ~0.002 ms | ~0.002 ms |
+| model state size | 48 bytes | 104 bytes | 42 bytes |
+
+This is a TinyML-style baseline, not a neural-network framework or hardware inference
+runtime. The held-out split is small and synthetic, so the result should be read as a
+local reproducibility step: the project now has a trainable inference stage that can
+be moved to target hardware later.
 
 </details>
 
@@ -235,6 +268,7 @@ The same result trail is also kept in separate notes:
 
 - `experiments/baseline_vs_optimized.md`
 - `experiments/inference_quantization.md`
+- `experiments/tiny_model.md`
 - `experiments/adaptive_sampling.md`
 - `experiments/batch_writes.md`
 - `experiments/stability_filter.md`
@@ -252,6 +286,7 @@ The repository is organized around small, testable pieces:
 | `edge_agent/metrics.py` | Calculates reliability metrics |
 | `edge_agent/buffer.py` | Implements local JSONL buffering and checkpoints |
 | `edge_agent/inference.py` | Implements float-like and quantized-like anomaly scoring |
+| `edge_agent/tiny_model.py` | Trains and compares a tiny learned sensor classifier |
 | `edge_agent/sampling.py` | Implements fixed-rate vs adaptive sampling comparison |
 | `edge_agent/batching.py` | Compares per-row vs batched SQLite writes |
 | `edge_agent/stability_filter.py` | Compares threshold alerts vs hysteresis filtering |
@@ -267,7 +302,7 @@ The repository is organized around small, testable pieces:
 | `uptime_ratio` | Fraction of expected samples that are normal `ok` readings |
 | `recovery_loss` | Expected sequence slots absent after a simulated write failure |
 | `precision` / `recall` / `f1` | Detection quality for synthetic anomaly labels |
-| `model_state_bytes` | Approximate stored state size for the lightweight scorer |
+| `model_state_bytes` | Approximate stored state size for the lightweight scorer or tiny model |
 | `sampled_count` / `skipped_count` | How many rows are evaluated or skipped by sampling policy |
 | `commit_count` | Number of SQLite commits used for a write path |
 | `false_positive` | Normal or transient rows incorrectly flagged as anomalies |
@@ -290,7 +325,8 @@ trade-offs:
 Current limitations:
 
 - Synthetic data only.
-- Lightweight statistical scoring only; no neural network model yet.
+- Tiny learned model is a standard-library logistic classifier; no neural-network
+  framework or hardware inference runtime yet.
 - Adaptive sampling estimates inference-work reduction; it does not measure real CPU or
   power draw yet.
 - Batch-write timing is machine-dependent until repeated on Raspberry Pi storage.

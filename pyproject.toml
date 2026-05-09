@@ -1,7 +1,7 @@
 [project]
 name = "edge-ai-reliability-benchmark"
 version = "0.1.0"
-description = "A reproducible benchmark for edge AI reliability metrics and software optimization experiments."
+description = "A reproducible benchmark for local sensor-inference reliability and software optimization experiments."
 requires-python = ">=3.9"
 
 [tool.pytest.ini_options]

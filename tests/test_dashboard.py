@@ -13,6 +13,10 @@ def test_build_metric_cards_from_summaries() -> None:
                 "float32_like": {"model_state_bytes": 48},
                 "int8_quantized_like": {"model_state_bytes": 6, "f1": 0.96},
             },
+            "tiny_model": {
+                "learned_float_like": {"model_state_bytes": 104, "f1": 1.0},
+                "learned_quantized_like": {"model_state_bytes": 42, "f1": 1.0},
+            },
             "sampling": {
                 "fixed_1hz": {"sampled_count": 100},
                 "adaptive": {"sampled_count": 80, "estimated_inference_reduction": 0.2},
@@ -33,6 +37,7 @@ def test_build_metric_cards_from_summaries() -> None:
     assert [card.title for card in cards] == [
         "Recovery loss",
         "Model state",
+        "Tiny model F1",
         "Inference work",
         "SQLite commits",
         "False positives",

@@ -56,6 +56,7 @@ def load_dashboard_data(root: Path = ROOT) -> dict[str, dict[str, Any] | None]:
     return {
         "recovery": load_json(root / "data/recovery_experiment/summary.json"),
         "inference": load_json(root / "data/inference_experiment/summary.json"),
+        "tiny_model": load_json(root / "data/tiny_model_experiment/summary.json"),
         "sampling": load_json(root / "data/sampling_experiment/summary.json"),
         "batching": load_json(root / "data/batching_experiment/summary.json"),
         "filtering": load_json(root / "data/filtering_experiment/summary.json"),
@@ -92,6 +93,25 @@ def build_metric_cards(data: dict[str, dict[str, Any] | None]) -> list[MetricCar
                 ),
                 note=f"F1 stays {fmt_number(inference['int8_quantized_like']['f1'])}",
                 tone="good",
+            )
+        )
+
+    tiny_model = data.get("tiny_model")
+    if tiny_model:
+        learned = tiny_model["learned_float_like"]
+        quantized = tiny_model["learned_quantized_like"]
+        cards.append(
+            MetricCard(
+                title="Tiny model F1",
+                before_label="float learned",
+                before_value=fmt_number(learned["f1"]),
+                after_label="quantized learned",
+                after_value=fmt_number(quantized["f1"]),
+                note=(
+                    f"state {learned['model_state_bytes']} B -> "
+                    f"{quantized['model_state_bytes']} B"
+                ),
+                tone="good" if quantized["f1"] >= learned["f1"] else "tradeoff",
             )
         )
 
@@ -230,6 +250,41 @@ def _inference_section(summary: dict[str, Any] | None) -> str:
                 ["recall", fmt_number(float_like["recall"]), fmt_number(quantized["recall"])],
                 ["F1", fmt_number(float_like["f1"]), fmt_number(quantized["f1"])],
                 ["state bytes", float_like["model_state_bytes"], quantized["model_state_bytes"]],
+            ],
+        )}
+      </section>
+    """
+
+
+def _tiny_model_section(summary: dict[str, Any] | None) -> str:
+    if not summary:
+        return _missing_section(
+            "Tiny Learned Sensor Model",
+            "python3 scripts/run_tiny_model_experiment.py",
+        )
+    statistical = summary["statistical_scorer"]
+    learned = summary["learned_float_like"]
+    quantized = summary["learned_quantized_like"]
+    max_state = max(learned["model_state_bytes"], quantized["model_state_bytes"], 1)
+    return f"""
+      <section class="section">
+        <h2>Statistical Scorer vs Tiny Learned Sensor Model</h2>
+        <p>Fixed chronological split: {summary['train_count']} train rows and {summary['test_count']} test rows.</p>
+        <div class="bars">
+          {_bar("float learned state bytes", learned["model_state_bytes"], max_state)}
+          {_bar("quantized learned state bytes", quantized["model_state_bytes"], max_state, "green")}
+        </div>
+        {_table(
+            ["metric", "statistical", "float learned", "quantized learned"],
+            [
+                ["evaluated samples", statistical["evaluated_count"], learned["evaluated_count"], quantized["evaluated_count"]],
+                ["true positives", statistical["true_positive"], learned["true_positive"], quantized["true_positive"]],
+                ["false positives", statistical["false_positive"], learned["false_positive"], quantized["false_positive"]],
+                ["false negatives", statistical["false_negative"], learned["false_negative"], quantized["false_negative"]],
+                ["precision", fmt_number(statistical["precision"]), fmt_number(learned["precision"]), fmt_number(quantized["precision"])],
+                ["recall", fmt_number(statistical["recall"]), fmt_number(learned["recall"]), fmt_number(quantized["recall"])],
+                ["F1", fmt_number(statistical["f1"]), fmt_number(learned["f1"]), fmt_number(quantized["f1"])],
+                ["state bytes", statistical["model_state_bytes"], learned["model_state_bytes"], quantized["model_state_bytes"]],
             ],
         )}
       </section>
@@ -422,7 +477,7 @@ def build_dashboard_html(root: Path = ROOT) -> str:
   <main>
     <header>
       <h1>Edge AI Reliability Benchmark Dashboard</h1>
-      <p>Local summary of reliability, lightweight inference, adaptive sampling, SQLite batching, and false-positive filtering experiments.</p>
+      <p>Local summary of reliability, lightweight inference, tiny learned model, adaptive sampling, SQLite batching, and false-positive filtering experiments.</p>
       <div class="meta">Generated at {escape(generated_at)}</div>
     </header>
 
@@ -433,6 +488,7 @@ def build_dashboard_html(root: Path = ROOT) -> str:
     <section class="sections">
       {_recovery_section(data["recovery"])}
       {_inference_section(data["inference"])}
+      {_tiny_model_section(data["tiny_model"])}
       {_sampling_section(data["sampling"])}
       {_batching_section(data["batching"])}
       {_filtering_section(data["filtering"])}

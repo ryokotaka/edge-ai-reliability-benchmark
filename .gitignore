@@ -20,6 +20,7 @@ data/private/
 data/raw_sensor/
 data/recovery_experiment/
 data/inference_experiment/
+data/tiny_model_experiment/
 data/sampling_experiment/
 data/batching_experiment/
 data/filtering_experiment/

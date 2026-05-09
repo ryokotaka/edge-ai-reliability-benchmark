@@ -36,5 +36,6 @@ float-like scoring against quantized-like scoring before moving to Raspberry Pi.
 
 Quantized-like scoring preserved detection quality and reduced stored state size in
 the synthetic benchmark. The latency numbers are too small and Python-dependent to use
-as hardware evidence. The next defensible step is to run the same comparison on
-Raspberry Pi and record CPU, memory, and wall-clock inference latency.
+as hardware evidence. The follow-up v7 experiment adds a standard-library tiny learned
+model; hardware CPU, memory, and wall-clock latency should still wait for Raspberry Pi
+measurements.

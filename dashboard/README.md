@@ -4,8 +4,8 @@ This dashboard is a dependency-free static HTML report generated from local expe
 summary files.
 
 It is meant to make the benchmark easier to scan when showing the project to someone:
-one page compares recovery loss, inference state size, adaptive sampling, SQLite commit
-count, and false-positive filtering.
+one page compares recovery loss, inference state size, the tiny learned model,
+adaptive sampling, SQLite commit count, and false-positive filtering.
 
 Generate all experiment summaries first:
 
@@ -14,6 +14,7 @@ python3 scripts/generate_synthetic_data.py
 python3 -m edge_agent.storage data/sample.csv data/readings.sqlite
 python3 scripts/run_recovery_experiment.py
 python3 scripts/run_inference_experiment.py
+python3 scripts/run_tiny_model_experiment.py
 python3 scripts/run_sampling_experiment.py
 python3 scripts/run_batch_write_experiment.py
 python3 scripts/run_stability_filter_experiment.py
